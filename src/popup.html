@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>X Archive</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <h1>X Archive</h1>
+
+      <button id="archiveBtn" type="button">Archive + upload</button>
+      <button id="downloadHtmlBtn" type="button" disabled>Download HTML</button>
+
+      <label class="check">
+        <input id="embedImages" type="checkbox" checked />
+        embed images
+      </label>
+
+      <p id="status" role="status"></p>
+
+      <section id="result" hidden>
+        <div id="title"></div>
+        <div id="meta"></div>
+        <a id="url" href="#" target="_blank" rel="noreferrer" hidden></a>
+      </section>
+
+      <details id="settings">
+        <summary>Cloudflare</summary>
+        <label>Account ID <input id="accountId" autocomplete="off" /></label>
+        <label>Project <input id="projectName" autocomplete="off" placeholder="ax" /></label>
+        <label>API token <input id="apiToken" autocomplete="off" type="password" /></label>
+        <label>Base URL <input id="baseUrl" autocomplete="off" placeholder="https://ax.pages.dev" /></label>
+        <button id="saveSettingsBtn" type="button">Save settings</button>
+      </details>
+    </main>
+    <script src="popup.js" type="module"></script>
+  </body>
+</html>
