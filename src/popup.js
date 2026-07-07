@@ -32,7 +32,7 @@ function setStatus(message, tone = '') {
 
 function setBusy(isBusy) {
   els.archiveBtn.disabled = isBusy;
-  els.archiveBtn.textContent = isBusy ? 'Workingâ¦' : 'Archive + upload';
+  els.archiveBtn.textContent = isBusy ? 'Working…' : 'Archive + upload';
 }
 
 function escapeHtml(value) {
@@ -199,7 +199,7 @@ function articleHtml(archive) {
   <main>
     <header>
       <h1>${escapeHtml(title)}</h1>
-      <div class="meta">${escapeHtml([author, formatDate(archive.publishedAt)].filter(Boolean).join(' Â· '))}</div>
+      <div class="meta">${escapeHtml([author, formatDate(archive.publishedAt)].filter(Boolean).join(' · '))}</div>
       <div class="source"><a href="${escapeHtml(source)}">${escapeHtml(source)}</a></div>
     </header>
     <article>
@@ -461,7 +461,7 @@ function renderPopupSummary(archive, publicUrl = '') {
   els.result.hidden = false;
   els.title.textContent = archive.title || 'Untitled';
   const author = [archive.author?.name, archive.author?.username].filter(Boolean).join(' ');
-  els.meta.textContent = [author, formatDate(archive.publishedAt), `${archive.text.length} chars`, `${archive.images.length} images`].filter(Boolean).join(' Â· ');
+  els.meta.textContent = [author, formatDate(archive.publishedAt), `${archive.text.length} chars`, `${archive.images.length} images`].filter(Boolean).join(' · ');
   els.downloadHtmlBtn.disabled = false;
   if (publicUrl) {
     els.url.hidden = false;
@@ -489,12 +489,12 @@ async function archiveAndUpload() {
       throw new Error('Cloudflare settings needed.');
     }
 
-    setStatus('Extractingâ¦');
+    setStatus('Extracting…');
     const response = await extractFromTab(tab.id);
     if (!response?.ok) throw new Error(response?.error || 'Extraction failed.');
     if (!response.data?.ok || !response.data.blocks?.length) throw new Error('No article content found.');
 
-    setStatus('Syncing archiveâ¦');
+    setStatus('Syncing archive…');
     const syncedArchives = mergeArchives(await fetchRemoteArchives(config), archives);
 
     currentArchive = await embedImages(response.data);
@@ -516,7 +516,7 @@ async function archiveAndUpload() {
     };
     for (const item of nextArchives) files[`article/${item.slug}/index.html`] = item.html;
 
-    setStatus('Uploadingâ¦');
+    setStatus('Uploading…');
     await deployToCloudflare(files, config);
     await storageSet({ archives: nextArchives, cloudflareConfig: config });
 
