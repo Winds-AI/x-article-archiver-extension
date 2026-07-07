@@ -1,0 +1,7 @@
+name = "x-article-archive"
+main = "worker/src/index.js"
+compatibility_date = "2026-07-07"
+
+[[r2_buckets]]
+binding = "ARCHIVE_BUCKET"
+bucket_name = "x-article-archive"
