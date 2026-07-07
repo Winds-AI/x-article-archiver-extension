@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "X Article Archiver",
-  "description": "Save the current X page to a Cloudflare Pages archive.",
-  "version": "0.2.0",
+  "description": "Save the current X page to a simple Cloudflare R2 archive.",
+  "version": "0.3.0",
   "action": {
     "default_title": "X Archive",
     "default_popup": "src/popup.html"
@@ -22,7 +22,7 @@
     "https://mobile.twitter.com/*",
     "https://pbs.twimg.com/*",
     "https://video.twimg.com/*",
-    "https://api.cloudflare.com/*"
+    "https://*.workers.dev/*"
   ],
   "background": {
     "service_worker": "src/background.js",
