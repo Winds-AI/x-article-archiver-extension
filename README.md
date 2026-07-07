@@ -1,25 +1,21 @@
 # X Article Archiver Extension
 
-Personal Chrome extension for extracting the currently open X/Twitter post or long-form article into a static HTML archive hosted on Cloudflare Pages.
+Personal Chrome extension for saving the current X/Twitter post or long-form article into a tiny Cloudflare Worker + R2 archive.
 
-## Current behavior
+## What it does
 
-- Runs on `x.com` / `twitter.com` in your logged-in browser.
-- Extracts the opened post or X Article from the DOM.
-- Preserves article order and structure: headings, paragraphs, lists, links, inline emphasis, and media images.
-- Uploads a full tiny static archive site to Cloudflare Pages.
-- Copies the stable article URL after upload.
+- Extracts the current X post or X Article from your logged-in browser.
+- Preserves headings, paragraphs, lists, links, inline emphasis, and article images.
+- Builds one standalone HTML page for the article.
+- Uploads that page to a Worker endpoint.
+- Stores article HTML and metadata in one R2 bucket.
+- Serves a simple index page at the archive site root.
 
 ## URL shape
 
 ```text
-https://<project>.pages.dev/article/<slug>/
-```
-
-The extension also keeps an archive index at:
-
-```text
-https://<project>.pages.dev/
+https://<worker-name>.<account-subdomain>.workers.dev/
+https://<worker-name>.<account-subdomain>.workers.dev/article/<slug>/
 ```
 
 ## Install locally
@@ -27,35 +23,40 @@ https://<project>.pages.dev/
 1. Open `chrome://extensions`.
 2. Enable **Developer mode**.
 3. Click **Load unpacked**.
-4. Select:
+4. Select this repository folder.
+
+## Cloudflare setup
+
+Create one R2 bucket:
 
 ```text
-/home/meet/Tinkering/x-article-archiver-extension
+x-article-archive
 ```
 
-## Cloudflare settings
+Deploy the Worker in this repo with an R2 binding named:
 
-Open the extension popup, expand **Cloudflare**, and save:
+```text
+ARCHIVE_BUCKET
+```
 
-- Account ID
-- Pages project name
-- API token with Cloudflare Pages edit permission
-- Base URL, for example `https://<project>.pages.dev`
+Set one Worker secret:
+
+```text
+UPLOAD_SECRET
+```
+
+## Extension settings
+
+Open the extension popup and save:
+
+- Archive site URL, for example `https://x-article-archive.example.workers.dev`
+- Upload secret, the same value as the Worker `UPLOAD_SECRET`
+
+That same URL and secret can be used on any PC. Each upload adds one article to the same R2-backed archive.
 
 ## Test flow
 
 1. Open an X post or X Article while logged in.
 2. Click the extension icon.
-3. Click **Archive + upload**.
-4. The extension extracts, rebuilds the archive site, deploys it to Cloudflare Pages, and copies the final URL.
-
-## Files
-
-```text
-manifest.json
-src/background.js             # image fetching / data URL conversion
-src/content.js                # X DOM structural extraction
-src/popup.html                # extension popup
-src/popup.css
-src/popup.js                  # rendering, local archive history, Cloudflare Pages upload
-```
+3. Click **Archive**.
+4. The extension uploads the article and copies the public article URL.
