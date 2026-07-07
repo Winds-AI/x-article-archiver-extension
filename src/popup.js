@@ -3,6 +3,7 @@ import { blake3 } from './vendor/noble-hashes/blake3.js';
 const MESSAGE_EXTRACT = 'X_ARCHIVER_EXTRACT';
 const MESSAGE_FETCH_IMAGE = 'X_ARCHIVER_FETCH_IMAGE';
 const API = 'https://api.cloudflare.com/client/v4';
+const ARCHIVE_MANIFEST = 'archives.json';
 
 const els = {
   archiveBtn: document.getElementById('archiveBtn'),
@@ -31,7 +32,7 @@ function setStatus(message, tone = '') {
 
 function setBusy(isBusy) {
   els.archiveBtn.disabled = isBusy;
-  els.archiveBtn.textContent = isBusy ? 'Working…' : 'Archive + upload';
+  els.archiveBtn.textContent = isBusy ? 'Workingâ¦' : 'Archive + upload';
 }
 
 function escapeHtml(value) {
@@ -198,7 +199,7 @@ function articleHtml(archive) {
   <main>
     <header>
       <h1>${escapeHtml(title)}</h1>
-      <div class="meta">${escapeHtml([author, formatDate(archive.publishedAt)].filter(Boolean).join(' · '))}</div>
+      <div class="meta">${escapeHtml([author, formatDate(archive.publishedAt)].filter(Boolean).join(' Â· '))}</div>
       <div class="source"><a href="${escapeHtml(source)}">${escapeHtml(source)}</a></div>
     </header>
     <article>
@@ -236,6 +237,81 @@ function indexHtml(entries) {
 </head>
 <body><main><h1>Archive</h1><ul>${items}</ul></main></body>
 </html>`;
+}
+
+function archiveManifest(entries) {
+  return JSON.stringify(entries.map(({ html, ...entry }) => entry), null, 2);
+}
+
+function sourceFromArticleHtml(html) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  return doc.querySelector('.source a')?.href || '';
+}
+
+async function fetchArticleHtml(baseUrl, slug) {
+  try {
+    const res = await fetch(`${baseUrl}/article/${encodeURIComponent(slug)}/index.html`, { cache: 'no-store' });
+    return res.ok ? await res.text() : '';
+  } catch {
+    return '';
+  }
+}
+
+async function fetchRemoteArchives(config) {
+  const baseUrl = config.baseUrl.replace(/\/$/, '');
+
+  try {
+    const manifestRes = await fetch(`${baseUrl}/${ARCHIVE_MANIFEST}?t=${Date.now()}`, { cache: 'no-store' });
+    if (manifestRes.ok) {
+      const entries = await manifestRes.json();
+      if (Array.isArray(entries)) {
+        return Promise.all(entries.map(async (entry) => ({
+          slug: entry.slug,
+          title: entry.title,
+          sourceUrl: entry.sourceUrl || '',
+          archivedAt: entry.archivedAt || new Date().toISOString(),
+          html: entry.html || await fetchArticleHtml(baseUrl, entry.slug)
+        })));
+      }
+    }
+  } catch {}
+
+  try {
+    const indexRes = await fetch(`${baseUrl}/?t=${Date.now()}`, { cache: 'no-store' });
+    if (!indexRes.ok) return [];
+
+    const doc = new DOMParser().parseFromString(await indexRes.text(), 'text/html');
+    const links = [...doc.querySelectorAll('a[href^="/article/"]')];
+    return Promise.all(links.map(async (link) => {
+      const slug = link.getAttribute('href').split('/').filter(Boolean).pop();
+      const html = await fetchArticleHtml(baseUrl, slug);
+      return {
+        slug,
+        title: link.textContent.trim() || slug,
+        sourceUrl: sourceFromArticleHtml(html),
+        archivedAt: new Date().toISOString(),
+        html
+      };
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function mergeArchives(...groups) {
+  const byKey = new Map();
+  for (const entry of groups.flat()) {
+    if (!entry?.slug || !entry?.title || !entry?.html) continue;
+    const key = entry.sourceUrl || entry.slug;
+    const previous = byKey.get(key);
+    byKey.set(key, {
+      ...previous,
+      ...entry,
+      html: entry.html || previous?.html || '',
+      archivedAt: entry.archivedAt || previous?.archivedAt || new Date().toISOString()
+    });
+  }
+  return [...byKey.values()];
 }
 
 function uniqueSlug(title, sourceUrl, entries) {
@@ -310,7 +386,7 @@ async function deployToCloudflare(files, config) {
     path,
     content,
     hash: pagesAssetHash(path, content),
-    contentType: 'text/html; charset=utf-8'
+    contentType: path.endsWith('.json') ? 'application/json; charset=utf-8' : 'text/html; charset=utf-8'
   })));
 
   const jwtResult = await cloudflareFetch(`/accounts/${config.accountId}/pages/projects/${config.projectName}/upload-token`, config);
@@ -385,7 +461,7 @@ function renderPopupSummary(archive, publicUrl = '') {
   els.result.hidden = false;
   els.title.textContent = archive.title || 'Untitled';
   const author = [archive.author?.name, archive.author?.username].filter(Boolean).join(' ');
-  els.meta.textContent = [author, formatDate(archive.publishedAt), `${archive.text.length} chars`, `${archive.images.length} images`].filter(Boolean).join(' · ');
+  els.meta.textContent = [author, formatDate(archive.publishedAt), `${archive.text.length} chars`, `${archive.images.length} images`].filter(Boolean).join(' Â· ');
   els.downloadHtmlBtn.disabled = false;
   if (publicUrl) {
     els.url.hidden = false;
@@ -413,15 +489,18 @@ async function archiveAndUpload() {
       throw new Error('Cloudflare settings needed.');
     }
 
-    setStatus('Extracting…');
+    setStatus('Extractingâ¦');
     const response = await extractFromTab(tab.id);
     if (!response?.ok) throw new Error(response?.error || 'Extraction failed.');
     if (!response.data?.ok || !response.data.blocks?.length) throw new Error('No article content found.');
 
+    setStatus('Syncing archiveâ¦');
+    const syncedArchives = mergeArchives(await fetchRemoteArchives(config), archives);
+
     currentArchive = await embedImages(response.data);
     currentHtml = articleHtml(currentArchive);
 
-    const slug = uniqueSlug(currentArchive.title, currentArchive.canonicalUrl || currentArchive.sourceUrl, archives);
+    const slug = uniqueSlug(currentArchive.title, currentArchive.canonicalUrl || currentArchive.sourceUrl, syncedArchives);
     const entry = {
       slug,
       title: currentArchive.title,
@@ -429,12 +508,15 @@ async function archiveAndUpload() {
       archivedAt: new Date().toISOString(),
       html: currentHtml
     };
-    const nextArchives = [...archives.filter((item) => item.slug !== slug), entry];
+    const nextArchives = mergeArchives(syncedArchives.filter((item) => item.slug !== slug), [entry]);
 
-    const files = { 'index.html': indexHtml(nextArchives) };
+    const files = {
+      'index.html': indexHtml(nextArchives),
+      [ARCHIVE_MANIFEST]: archiveManifest(nextArchives)
+    };
     for (const item of nextArchives) files[`article/${item.slug}/index.html`] = item.html;
 
-    setStatus('Uploading…');
+    setStatus('Uploadingâ¦');
     await deployToCloudflare(files, config);
     await storageSet({ archives: nextArchives, cloudflareConfig: config });
 
